@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>تشخيص أمراض الدواجن</title>
+<title>تشخيص أمراض الدواجن ومتابع التسمين</title>
 <meta name="theme-color" content="#2E5339">
-<meta name="description" content="تطبيق للتشخيص المبدئي لأمراض الدواجن من الصور - يعمل بدون إنترنت">
+<meta name="description" content="تطبيق مجاني لتشخيص أمراض الدواجن بالذكاء الاصطناعي ومتابع دورة التسمين 45 يوماً ودليل الصيدليات البيطرية في السودان - يعمل بدون إنترنت">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -14,6 +14,8 @@
     --primary: #2E5339;
     --primary-dark: #1E3A26;
     --accent: #D4A017;
+    --whatsapp: #1F9D55;
+    --whatsapp-dark: #167940;
     --bg: #F7F5F0;
     --card-bg: #FFFFFF;
     --text: #22281F;
@@ -30,34 +32,100 @@
     background: var(--bg);
     color: var(--text);
     min-height: 100vh;
-    padding-bottom: 40px;
+    padding-bottom: 48px;
   }
   header {
     background: linear-gradient(135deg, var(--primary), var(--primary-dark));
     color: white;
-    padding: 20px 16px 24px;
+    padding: 18px 16px 20px;
     text-align: center;
     border-radius: 0 0 20px 20px;
   }
-  header h1 { margin: 0; font-size: 1.3rem; font-weight: 700; }
-  header p { margin: 6px 0 0; font-size: 0.85rem; opacity: 0.85; }
+  header h1 { margin: 0; font-size: 1.28rem; font-weight: 700; }
+  header p { margin: 6px 0 0; font-size: 0.84rem; opacity: 0.9; }
 
-  main { max-width: 480px; margin: 0 auto; padding: 16px; }
+  .free-pill {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 3px 11px;
+    border-radius: 999px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    background: rgba(255,255,255,0.16);
+    color: #FFF7D6;
+    border: 1px solid rgba(255,255,255,0.28);
+  }
+
+  /* شريط التبويبات الرئيسي */
+  .tabs-nav {
+    max-width: 520px;
+    margin: -12px auto 6px;
+    padding: 0 14px;
+    position: sticky;
+    top: 8px;
+    z-index: 20;
+  }
+  .tabs-bar {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    background: #FFFFFF;
+    padding: 6px;
+    border-radius: 14px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+    border: 1px solid var(--border);
+  }
+  .tab-btn {
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    padding: 10px 6px;
+    border-radius: 10px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    flex: none;
+  }
+  .tab-btn.active {
+    background: var(--primary);
+    color: #FFFFFF;
+  }
+
+  main { max-width: 520px; margin: 0 auto; padding: 12px 14px 16px; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
 
   .card {
     background: var(--card-bg);
     border-radius: 16px;
-    padding: 18px;
-    margin-bottom: 16px;
+    padding: 16px;
+    margin-bottom: 14px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.06);
     border: 1px solid var(--border);
+  }
+  .card-title {
+    margin: 0 0 12px;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--primary-dark);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .card-sub {
+    margin: -6px 0 12px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    line-height: 1.5;
   }
 
   #model-status {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 0.85rem;
+    font-size: 0.84rem;
     color: var(--text-muted);
   }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warning); flex-shrink: 0; }
@@ -85,8 +153,8 @@
     font-family: inherit;
     border: none;
     border-radius: 12px;
-    padding: 13px 16px;
-    font-size: 0.95rem;
+    padding: 12px 14px;
+    font-size: 0.92rem;
     font-weight: 600;
     cursor: pointer;
     flex: 1;
@@ -97,14 +165,24 @@
 
   .btn-primary { background: var(--primary); color: white; }
   .btn-secondary { background: #EDEBE3; color: var(--text); }
+  .btn-danger-soft { background: #FCE8E6; color: var(--danger); }
   .btn-diagnose {
     width: 100%;
     background: var(--accent);
     color: #2A1F00;
     margin-top: 14px;
-    padding: 15px;
-    font-size: 1.02rem;
+    padding: 14px;
+    font-size: 1rem;
   }
+  .btn-whatsapp {
+    background: var(--whatsapp);
+    color: #FFFFFF;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .btn-whatsapp:hover { background: var(--whatsapp-dark); }
 
   input[type="file"] { display: none; }
 
@@ -132,10 +210,24 @@
     border-radius: 10px;
     padding: 11px 13px;
     margin-bottom: 12px;
-    font-size: 0.86rem;
+    font-size: 0.85rem;
     line-height: 1.55;
   }
   .warning-banner.visible { display: block; }
+
+  .danger-banner {
+    display: none;
+    background: #FDF2F2;
+    color: #7F1D1D;
+    border: 1px solid #F5C2C0;
+    border-right: 4px solid var(--danger);
+    border-radius: 10px;
+    padding: 11px 13px;
+    margin-bottom: 12px;
+    font-size: 0.85rem;
+    line-height: 1.55;
+  }
+  .danger-banner.visible { display: block; }
 
   .ood-box {
     display: none;
@@ -152,6 +244,15 @@
   .ood-box.visible { display: block; }
   .ood-box ul { margin: 8px 0 0; padding-right: 18px; font-size: 0.84rem; }
 
+  .share-actions {
+    display: none;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .share-actions.visible { display: flex; }
+  .share-actions .btn-whatsapp { flex: 2; }
+  .share-actions .btn-secondary { flex: 1; font-size: 0.84rem; }
+
   .gate-meta {
     margin-top: 10px;
     font-size: 0.74rem;
@@ -167,9 +268,9 @@
   .confidence-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
   .confidence-bar-bg { flex: 1; height: 8px; background: #EDEBE3; border-radius: 4px; overflow: hidden; }
   .confidence-bar-fill { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.4s; }
-  .confidence-label { font-size: 0.85rem; color: var(--text-muted); white-space: nowrap; }
+  .confidence-label { font-size: 0.84rem; color: var(--text-muted); white-space: nowrap; }
 
-  .explanation { font-size: 0.92rem; line-height: 1.6; color: var(--text); margin-bottom: 12px; }
+  .explanation { font-size: 0.91rem; line-height: 1.6; color: var(--text); margin-bottom: 12px; }
 
   .prob-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
   .prob-item { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; }
@@ -188,13 +289,283 @@
     line-height: 1.5;
   }
 
+  /* ── متابع دورة التسمين 45 يوماً ── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .kpi-box {
+    background: #FAFAF7;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 11px 12px;
+  }
+  .kpi-box.wide { grid-column: span 2; }
+  .kpi-label { font-size: 0.76rem; color: var(--text-muted); margin-bottom: 4px; }
+  .kpi-value { font-size: 1.12rem; font-weight: 800; color: var(--primary-dark); }
+  .kpi-sub { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; line-height: 1.35; }
+  .text-success { color: var(--success) !important; }
+  .text-danger { color: var(--danger) !important; }
+
+  .progress-track {
+    width: 100%;
+    height: 7px;
+    background: #E6E4DC;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 7px;
+  }
+  .progress-fill { height: 100%; background: var(--primary); border-radius: 4px; transition: width 0.3s; }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field.full { grid-column: span 2; }
+  .field label { font-size: 0.77rem; font-weight: 600; color: var(--text-muted); }
+  .field input, .field select {
+    width: 100%;
+    padding: 10px 11px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    background: #FFFFFF;
+    color: var(--text);
+  }
+  .field input:focus, .field select:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+
+  .toast-inline {
+    display: none;
+    margin-top: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--success);
+    text-align: center;
+  }
+  .toast-inline.visible { display: block; }
+
+  /* جدول التحصينات */
+  .vac-list { display: flex; flex-direction: column; gap: 8px; }
+  .vac-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 11px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: #FAFAF7;
+    cursor: pointer;
+  }
+  .vac-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    accent-color: var(--primary);
+    flex-shrink: 0;
+  }
+  .vac-item.is-due { background: #FFF8E1; border-color: #F5D076; }
+  .vac-item.is-overdue { background: #FDF2F2; border-color: #F5C2C0; }
+  .vac-item.is-done { background: #F1F8F3; border-color: #C8E6C9; opacity: 0.88; }
+  .vac-body { flex: 1; }
+  .vac-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    flex-wrap: wrap;
+    font-size: 0.85rem;
+  }
+  .vac-method { font-size: 0.77rem; color: var(--text-muted); margin-top: 4px; line-height: 1.4; }
+  .vac-pill {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .vac-done { background: #E6F4EA; color: var(--success); }
+  .vac-due { background: #FFE082; color: #7A4F01; }
+  .vac-overdue { background: #FCE8E6; color: var(--danger); }
+  .vac-upcoming { background: #ECEAE2; color: var(--text-muted); }
+
+  /* السجل اليومي */
+  .log-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .log-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 11px;
+    background: #FAFAF7;
+    border: 1px solid var(--border);
+  }
+  .log-date { font-size: 0.8rem; font-weight: 700; color: var(--primary-dark); }
+  .log-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    font-size: 0.82rem;
+    margin-top: 4px;
+    color: var(--text);
+  }
+  .log-note { font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; }
+  .btn-icon-del {
+    flex: none;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border-radius: 8px;
+    background: #FCE8E6;
+    color: var(--danger);
+    font-size: 0.8rem;
+  }
+
+  /* ── دليل الصيدليات البيطرية وموردي الأعلاف ── */
+  .chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .chip-btn {
+    flex: none;
+    padding: 7px 12px;
+    border-radius: 999px;
+    background: #EDEBE3;
+    color: var(--text);
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  .chip-btn.active { background: var(--primary); color: #FFFFFF; }
+
+  .dir-filters-row { display: flex; gap: 8px; margin-bottom: 12px; }
+  .dir-filters-row input, .dir-filters-row select {
+    padding: 9px 11px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    font-family: inherit;
+    font-size: 0.85rem;
+    background: #FFFFFF;
+  }
+  .dir-filters-row input { flex: 1.3; }
+  .dir-filters-row select { flex: 1; }
+
+  .dir-listings { display: flex; flex-direction: column; gap: 10px; }
+  .dir-card {
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    padding: 13px;
+    background: #FAFAF7;
+  }
+  .dir-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .dir-title { font-weight: 700; font-size: 0.92rem; color: var(--primary-dark); }
+  .dir-meta { font-size: 0.78rem; color: var(--text-muted); margin-top: 3px; line-height: 1.4; }
+  .dir-head-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .dir-badge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .badge-verified { background: #E6F4EA; color: var(--success); }
+  .badge-open { background: #FFF3CD; color: #7A4F01; }
+  .badge-local { background: #E3F2FD; color: #0D47A1; }
+
+  .service-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+  .service-tag {
+    font-size: 0.73rem;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: #FFFFFF;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+  .dir-actions { margin-top: 10px; }
+  .btn-wa-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    text-decoration: none;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    background: var(--whatsapp);
+    color: #FFFFFF;
+  }
+  .btn-wa-outline {
+    background: #EDF7F0;
+    color: #166534;
+    border: 1px solid #B7E4C7;
+  }
+
+  .merchant-cta-card {
+    background: linear-gradient(135deg, #1E3A26, #2E5339);
+    color: #FFFFFF;
+    border-radius: 16px;
+    padding: 18px 16px;
+    margin-bottom: 14px;
+    border: 1px solid #1B3322;
+  }
+  .merchant-cta-card h3 { margin: 0 0 6px; font-size: 1.02rem; color: #FFF7D6; }
+  .merchant-cta-card p { margin: 0 0 12px; font-size: 0.83rem; opacity: 0.92; line-height: 1.55; }
+  .merchant-cta-card .field label { color: #DCEAD9; }
+  .merchant-cta-card .btn-whatsapp {
+    width: 100%;
+    margin-top: 12px;
+    padding: 13px;
+    font-size: 0.94rem;
+    background: #25D366;
+    color: #082F15;
+  }
+
+  .empty-state {
+    text-align: center;
+    font-size: 0.84rem;
+    color: var(--text-muted);
+    padding: 16px 10px;
+    background: #FAFAF7;
+    border-radius: 10px;
+    border: 1px dashed var(--border);
+  }
+
+  details summary {
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--primary-dark);
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  details summary::-webkit-details-marker { display: none; }
+  details[open] summary { margin-bottom: 12px; }
+
   #install-banner {
     display: none;
     background: var(--primary);
     color: white;
     border-radius: 12px;
     padding: 12px 14px;
-    margin-bottom: 16px;
+    margin-bottom: 14px;
     font-size: 0.85rem;
     align-items: center;
     justify-content: space-between;
@@ -215,69 +586,312 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  footer { text-align: center; font-size: 0.75rem; color: var(--text-muted); margin-top: 20px; }
+  footer { text-align: center; font-size: 0.75rem; color: var(--text-muted); margin-top: 18px; line-height: 1.6; }
 </style>
 </head>
 <body>
 
 <header>
   <h1>🐔 تشخيص أمراض الدواجن</h1>
-  <p>تشخيص مبدئي من الصورة — يعمل بدون إنترنت</p>
+  <p>تشخيص بصري بالذكاء الاصطناعي + متابع تسمين 45 يوماً + دليل الصيدليات</p>
+  <span class="free-pill">✨ مجاني 100% للجميع — يعمل بدون إنترنت</span>
 </header>
+
+<nav class="tabs-nav" aria-label="الأقسام الرئيسية">
+  <div class="tabs-bar" role="tablist">
+    <button type="button" class="tab-btn active" role="tab" aria-selected="true" data-tab="tab-diagnose" id="nav-diagnose">🔬 التشخيص</button>
+    <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="tab-cycle" id="nav-cycle">🐣 متابع الدورة</button>
+    <button type="button" class="tab-btn" role="tab" aria-selected="false" data-tab="tab-directory" id="nav-directory">🏪 الصيدليات</button>
+  </div>
+</nav>
 
 <main>
   <div id="install-banner">
-    <span>ثبّت التطبيق على هاتفك للوصول السريع</span>
+    <span>ثبّت التطبيق على هاتفك للعمل بدون إنترنت</span>
     <button id="install-btn">تثبيت</button>
   </div>
 
-  <div class="card">
-    <div id="model-status">
-      <span class="dot" id="status-dot"></span>
-      <span id="status-text">جاري تحميل النموذج...</span>
-    </div>
-  </div>
-
-  <div class="card">
-    <div id="image-preview-wrap">
-      <span id="placeholder-icon">📷</span>
-      <img id="image-preview" alt="الصورة المختارة">
+  <!-- ======================================================== -->
+  <!-- التبويب 1: تشخيص أمراض الدواجن (ONNX v2 + بوابة OOD الثلاثية) -->
+  <!-- ======================================================== -->
+  <section id="tab-diagnose" class="tab-panel active">
+    <div class="card">
+      <div id="model-status">
+        <span class="dot" id="status-dot"></span>
+        <span id="status-text">جاري تحميل النموذج...</span>
+      </div>
     </div>
 
-    <div class="btn-row">
-      <button class="btn-primary" id="camera-btn">📸 التقاط صورة</button>
-      <button class="btn-secondary" id="gallery-btn">🖼️ من المعرض</button>
-    </div>
-    <input type="file" id="camera-input" accept="image/*" capture="environment">
-    <input type="file" id="gallery-input" accept="image/*">
+    <div class="card">
+      <div id="image-preview-wrap">
+        <span id="placeholder-icon">📷</span>
+        <img id="image-preview" alt="الصورة المختارة">
+      </div>
 
-    <button class="btn-diagnose" id="diagnose-btn" disabled>حدد صورة أولاً</button>
-  </div>
+      <div class="btn-row">
+        <button class="btn-primary" id="camera-btn">📸 التقاط صورة</button>
+        <button class="btn-secondary" id="gallery-btn">🖼️ من المعرض</button>
+      </div>
+      <input type="file" id="camera-input" accept="image/*" capture="environment">
+      <input type="file" id="gallery-input" accept="image/*">
 
-  <div class="card" id="result-card">
-    <div id="result-badge" class="result-badge"></div>
-
-    <div class="warning-banner" id="quality-warning" role="alert"></div>
-    <div class="ood-box" id="ood-guidance" role="alert"></div>
-
-    <div class="confidence-row" id="confidence-row">
-      <span class="confidence-label">مستوى الثقة</span>
-      <div class="confidence-bar-bg"><div class="confidence-bar-fill" id="confidence-fill"></div></div>
-      <span class="confidence-label" id="confidence-pct"></span>
+      <button class="btn-diagnose" id="diagnose-btn" disabled>حدد صورة أولاً</button>
     </div>
 
-    <div class="explanation" id="explanation-text"></div>
+    <div class="card" id="result-card">
+      <div id="result-badge" class="result-badge"></div>
 
-    <div class="prob-list" id="prob-list"></div>
+      <div class="warning-banner" id="quality-warning" role="alert"></div>
+      <div class="ood-box" id="ood-guidance" role="alert"></div>
 
-    <div class="gate-meta" id="gate-meta"></div>
+      <div class="confidence-row" id="confidence-row">
+        <span class="confidence-label">مستوى الثقة</span>
+        <div class="confidence-bar-bg"><div class="confidence-bar-fill" id="confidence-fill"></div></div>
+        <span class="confidence-label" id="confidence-pct"></span>
+      </div>
 
-    <div class="disclaimer">
-      ⚠️ هذا تشخيص مبدئي بالذكاء الاصطناعي وليس بديلاً عن الفحص البيطري. في حال استمرار الأعراض أو الحالات الحرجة، يرجى استشارة طبيب بيطري.
+      <div class="explanation" id="explanation-text"></div>
+
+      <div class="prob-list" id="prob-list"></div>
+
+      <div class="share-actions" id="share-actions">
+        <button type="button" class="btn-whatsapp" id="share-whatsapp-btn">💬 مشاركة التقرير عبر واتساب</button>
+        <button type="button" class="btn-secondary" id="copy-report-btn">📋 نسخ</button>
+      </div>
+
+      <div class="gate-meta" id="gate-meta"></div>
+
+      <div class="disclaimer">
+        ⚠️ هذا تشخيص مبدئي بالذكاء الاصطناعي وليس بديلاً عن الفحص البيطري. في حال استمرار الأعراض أو الحالات الحرجة، يرجى استشارة طبيب بيطري.
+      </div>
     </div>
-  </div>
+  </section>
 
-  <footer>يعمل بالكامل على جهازك — لا تُرسل أي صورة إلى الإنترنت</footer>
+  <!-- ======================================================== -->
+  <!-- التبويب 2: متابع دورة التسمين (45 يوماً — أوفلاين بالكامل) -->
+  <!-- ======================================================== -->
+  <section id="tab-cycle" class="tab-panel">
+    <div class="card">
+      <div class="card-title">
+        <span>📊 لوحة دورة التسمين (45 يوماً)</span>
+        <button type="button" class="btn-whatsapp" id="cycle-share-whatsapp" style="flex:none; padding:6px 10px; font-size:0.78rem;">💬 مشاركة الملخص</button>
+      </div>
+
+      <div class="danger-banner" id="cycle-mortality-alert" role="alert"></div>
+
+      <div class="kpi-grid">
+        <div class="kpi-box wide">
+          <div class="kpi-label">عمر القطيع الحالي (محسوب تلقائياً من تاريخ الاستقبال)</div>
+          <div class="kpi-value" id="kpi-age">اليوم 1 / 45</div>
+          <div class="kpi-sub" id="kpi-stage">مرحلة العلف البادي (Starter)</div>
+          <div class="progress-track"><div class="progress-fill" id="cycle-age-progress" style="width:2%"></div></div>
+        </div>
+
+        <div class="kpi-box">
+          <div class="kpi-label">الطيور الحية والنفوق</div>
+          <div class="kpi-value" id="kpi-alive">500 طائر</div>
+          <div class="kpi-sub" id="kpi-mortality">نفوق: 0 (0.0%)</div>
+        </div>
+
+        <div class="kpi-box">
+          <div class="kpi-label">معامل التحويل الغذائي (FCR)</div>
+          <div class="kpi-value" id="kpi-fcr">—</div>
+          <div class="kpi-sub" id="kpi-fcr-note">سجّل العلف اليومي لحساب FCR</div>
+        </div>
+
+        <div class="kpi-box">
+          <div class="kpi-label">تكلفة الطائر التراكمية</div>
+          <div class="kpi-value" id="kpi-cost-bird">0 ج.س</div>
+          <div class="kpi-sub" id="kpi-total-cost">إجمالي التكلفة: 0 ج.س</div>
+        </div>
+
+        <div class="kpi-box">
+          <div class="kpi-label">صافي الربح المتوقع (SDG)</div>
+          <div class="kpi-value" id="kpi-profit">0 ج.س</div>
+          <div class="kpi-sub" id="kpi-revenue">إيراد تقديري: 0 ج.س</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- جدول التحصينات القياسي في السودان -->
+    <div class="card">
+      <div class="card-title">💉 جدول التحصينات القياسي في السودان</div>
+      <p class="card-sub">حدّد كل تحصين فور تنفيذه — تتحدث التنبيهات تلقائياً حسب عمر القطيع اليوم.</p>
+      <div class="warning-banner" id="vac-due-banner" role="alert"></div>
+      <div class="vac-list" id="vac-schedule-list"></div>
+    </div>
+
+    <!-- سجل النفوق والعلف اليومي -->
+    <div class="card">
+      <div class="card-title">📝 تسجيل النفوق والعلف اليومي</div>
+      <form id="daily-log-form">
+        <div class="form-grid">
+          <div class="field">
+            <label for="log-date">التاريخ</label>
+            <input type="date" id="log-date" required>
+          </div>
+          <div class="field">
+            <label for="log-mortality">النفوق اليومي (عدد)</label>
+            <input type="number" id="log-mortality" min="0" step="1" placeholder="مثال: 2">
+          </div>
+          <div class="field">
+            <label for="log-feed-kg">العلف المستهلك (كجم)</label>
+            <input type="number" id="log-feed-kg" min="0" step="0.5" placeholder="مثال: 25">
+          </div>
+          <div class="field">
+            <label for="log-weight-g">متوسط الوزن (جرام - اختياري)</label>
+            <input type="number" id="log-weight-g" min="0" step="10" placeholder="مثال: 850">
+          </div>
+          <div class="field full">
+            <label for="log-note">ملاحظة سريعة (اختياري)</label>
+            <input type="text" id="log-note" placeholder="مثال: حرارة عالية / إعطاء فيتامينات">
+          </div>
+        </div>
+        <button type="submit" class="btn-primary" style="width:100%; margin-top:12px;">➕ حفظ السجل اليومي</button>
+      </form>
+      <div class="log-list" id="daily-log-list"></div>
+    </div>
+
+    <!-- إعدادات الدورة وحاسبة الأسعار بالجنيه السوداني -->
+    <div class="card">
+      <details open>
+        <summary>⚙️ إعدادات الدورة وأسعار العلف والبيع (SDG) <span>▾</span></summary>
+        <div class="form-grid">
+          <div class="field full">
+            <label for="cycle-flock-name">اسم العنبر / الدورة</label>
+            <input type="text" id="cycle-flock-name" placeholder="مثال: عنبر التسمين 1">
+          </div>
+          <div class="field">
+            <label for="cycle-start-date">تاريخ استقبال الكتاكيت</label>
+            <input type="date" id="cycle-start-date">
+          </div>
+          <div class="field">
+            <label for="cycle-initial-birds">عدد الكتاكيت الابتدائي</label>
+            <input type="number" id="cycle-initial-birds" min="1" step="1">
+          </div>
+          <div class="field">
+            <label for="cycle-chick-price">سعر الكتكوت (ج.س)</label>
+            <input type="number" id="cycle-chick-price" min="0" step="100">
+          </div>
+          <div class="field">
+            <label for="cycle-feed-bag-price">سعر جوال العلف 50 كجم (ج.س)</label>
+            <input type="number" id="cycle-feed-bag-price" min="0" step="500">
+          </div>
+          <div class="field">
+            <label for="cycle-extra-costs">مصاريف أخرى (أدوية/تدفئة - ج.س)</label>
+            <input type="number" id="cycle-extra-costs" min="0" step="1000">
+          </div>
+          <div class="field">
+            <label for="cycle-sell-price">سعر بيع الكيلو الحي (ج.س)</label>
+            <input type="number" id="cycle-sell-price" min="0" step="100">
+          </div>
+          <div class="field full">
+            <label for="cycle-avg-weight">متوسط وزن الطائر الحالي (جرام — اتركه فارغاً للتقدير القياسي)</label>
+            <input type="number" id="cycle-avg-weight" min="0" step="10" placeholder="يُقدَّر تلقائياً حسب العمر إذا تُرك فارغاً">
+          </div>
+        </div>
+        <div class="btn-row" style="margin-top:12px;">
+          <button type="button" class="btn-primary" id="cycle-save-settings">💾 حفظ الإعدادات</button>
+          <button type="button" class="btn-danger-soft" id="cycle-reset-btn" style="flex:0.6;">🔄 دورة جديدة</button>
+        </div>
+        <div class="toast-inline" id="cycle-settings-toast"></div>
+      </details>
+    </div>
+  </section>
+
+  <!-- ======================================================== -->
+  <!-- التبويب 3: دليل الصيدليات البيطرية ومورّدي الأعلاف في السودان -->
+  <!-- ======================================================== -->
+  <section id="tab-directory" class="tab-panel">
+    <div class="card">
+      <div class="card-title">🏪 دليل الصيدليات البيطرية ومورّدي الأعلاف</div>
+      <p class="card-sub">تصفّح حسب الولاية أو المدينة للتواصل المباشر عبر واتساب — مجاني بالكامل للمربين والتجار.</p>
+
+      <div class="chip-row" id="dir-city-filters"></div>
+
+      <div class="dir-filters-row">
+        <input type="search" id="dir-search-input" placeholder="ابحث باسم صيدلية أو علف أو لقاح...">
+        <select id="dir-category-filter" aria-label="نوع النشاط">
+          <option value="all">كل الأنشطة</option>
+          <option value="pharmacy">صيدلية بيطرية</option>
+          <option value="feed">مصنع / مورّد أعلاف</option>
+          <option value="chicks">كتاكيت وتجهيزات</option>
+        </select>
+      </div>
+
+      <div class="dir-listings" id="dir-listings"></div>
+    </div>
+
+    <!-- حفظ جهة اتصال محلية خاصة بالمربي أوفلاين -->
+    <div class="card">
+      <details>
+        <summary>📌 احفظ رقم صيدليتك أو مورّد العلف الخاص بك (على جهازك) <span>▾</span></summary>
+        <form id="dir-local-add-form">
+          <div class="form-grid">
+            <div class="field full">
+              <label for="local-contact-name">اسم الصيدلية / الطبيب / المورّد</label>
+              <input type="text" id="local-contact-name" placeholder="مثال: صيدلية النيل البيطرية">
+            </div>
+            <div class="field">
+              <label for="local-contact-city">المدينة / الولاية</label>
+              <select id="local-contact-city"></select>
+            </div>
+            <div class="field">
+              <label for="local-contact-category">النوع</label>
+              <select id="local-contact-category">
+                <option value="pharmacy">صيدلية بيطرية</option>
+                <option value="feed">مصنع / مورّد أعلاف</option>
+                <option value="chicks">كتاكيت وتجهيزات</option>
+              </select>
+            </div>
+            <div class="field full">
+              <label for="local-contact-phone">رقم الواتساب (مثال: 249912345678)</label>
+              <input type="tel" id="local-contact-phone" dir="ltr" placeholder="249912345678">
+            </div>
+          </div>
+          <button type="submit" class="btn-secondary" style="width:100%; margin-top:10px;">💾 حفظ على جهازي للوصول السريع</button>
+        </form>
+      </details>
+    </div>
+
+    <!-- بطاقة تسجيل التجار والشركاء الأوائل مجاناً خلال فترة الإطلاق -->
+    <div class="merchant-cta-card" id="merchant-register-card">
+      <h3>📢 أضف صيدليتك البيطرية أو مصنع الأعلاف مجاناً خلال فترة الإطلاق</h3>
+      <p>
+        انضم الآن إلى الدليل الرسمي ليصل إليك مربّو الدواجن في ولايتك مباشرة عبر واتساب — التسجيل والظهور مجاني 100% للشركاء الأوائل خلال مرحلة الإطلاق.
+      </p>
+      <div class="form-grid">
+        <div class="field full">
+          <label for="merchant-reg-name">اسم الصيدلية البيطرية أو المصنع</label>
+          <input type="text" id="merchant-reg-name" placeholder="مثال: صيدلية البركة البيطرية / مطاحن الخير للأعلاف">
+        </div>
+        <div class="field">
+          <label for="merchant-reg-city">المدينة / الولاية</label>
+          <select id="merchant-reg-city"></select>
+        </div>
+        <div class="field">
+          <label for="merchant-reg-type">نوع النشاط</label>
+          <select id="merchant-reg-type">
+            <option value="pharmacy">صيدلية بيطرية</option>
+            <option value="feed">مصنع / مورّد أعلاف</option>
+            <option value="chicks">كتاكيت وتجهيزات مزارع</option>
+          </select>
+        </div>
+        <div class="field full">
+          <label for="merchant-reg-phone">رقم واتساب المبيعات (اختياري)</label>
+          <input type="tel" id="merchant-reg-phone" dir="ltr" placeholder="249912345678">
+        </div>
+      </div>
+      <button type="button" class="btn-whatsapp" id="merchant-reg-whatsapp-btn">
+        💬 أرسل بياناتك للتسجيل المجاني عبر واتساب
+      </button>
+    </div>
+  </section>
+
+  <footer>
+    يعمل بالكامل على جهازك — لا تُرسل أي صورة إلى الإنترنت<br>
+    تطبيق مجاني بالكامل لخدمة مربي الدواجن في السودان
+  </footer>
 </main>
 
 <script type="module" src="app.js"></script>

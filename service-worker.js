@@ -1,12 +1,15 @@
 // ============================================================
-// Service Worker v2 - تحديث إجباري لكاش نموذج v2 والعمل بدون إنترنت
+// Service Worker v2.1 - تخزين كامل لجميع تبويبات التطبيق ونموذج v2 للعمل بدون إنترنت
 // ============================================================
 
-const CACHE_VERSION = "poultry-diagnosis-v2-20261120";
+const CACHE_VERSION = "poultry-diagnosis-v2.1-20261120";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./app.js",
+  "./tracker.js",
+  "./directory.js",
+  "./directory-data.js",
   "./manifest.json",
   "./model/poultry_classifier.onnx",
   "./model/ood_config.json",
@@ -31,7 +34,7 @@ self.addEventListener("install", (event) => {
   );
 });
 
-// عند التفعيل: حذف جميع إصدارات الكاش القديمة (مثل poultry-diagnosis-v1) فوراً
+// عند التفعيل: حذف جميع إصدارات الكاش القديمة فوراً
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
@@ -46,7 +49,7 @@ self.addEventListener("activate", (event) => {
 });
 
 // استراتيجية الجلب:
-// - ملفات الكود والإعدادات (HTML/JS/JSON): Network First لضمان وصول التحديثات فوراً مع Fallback للكاش عند انقطاع الإنترنت
+// - ملفات الكود والإعدادات (HTML/JS/JSON): Network First مع Fallback للكاش عند انقطاع الإنترنت
 // - النموذج الثقيل والصور وملفات WASM من CDN: Cache First مع تحديث في الخلفية
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;

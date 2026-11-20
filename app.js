@@ -1,12 +1,51 @@
 // ============================================================
-// تطبيق تشخيص أمراض الدواجن v2 - يعمل بالكامل داخل المتصفح (Client-Side)
+// تطبيق تشخيص أمراض الدواجن v2.1 - مجاني بالكامل ويعمل بدون إنترنت
 // النموذج: EfficientNet-B0 ONNX v2 (Zero Data Leakage + Temperature Calibration + بوابة OOD ثلاثية)
 // ============================================================
 
 import * as ort from "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.mjs";
+import { APP_PUBLIC_URL, buildWhatsAppUrl } from "./directory-data.js";
+import { initBroilerTracker } from "./tracker.js";
+import { initDirectory } from "./directory.js";
 
 // توجيه محرك WASM لتحميل ملفاته من نفس الـ CDN (يُخزَّن مؤقتاً عبر Service Worker للعمل بدون إنترنت لاحقاً)
 ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/";
+
+// --------------------------------------------------------------
+// نظام التبويبات (التشخيص / متابع الدورة / دليل الصيدليات)
+// --------------------------------------------------------------
+function initTabs() {
+  const buttons = Array.from(document.querySelectorAll(".tab-btn[data-tab]"));
+  const panels = Array.from(document.querySelectorAll(".tab-panel"));
+
+  function activateTab(tabId) {
+    buttons.forEach((btn) => {
+      const active = btn.getAttribute("data-tab") === tabId;
+      btn.classList.toggle("active", active);
+      btn.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    panels.forEach((panel) => {
+      panel.classList.toggle("active", panel.id === tabId);
+    });
+  }
+
+  buttons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const target = btn.getAttribute("data-tab");
+      activateTab(target);
+      history.replaceState(null, "", `#${target.replace("tab-", "")}`);
+    });
+  });
+
+  const hash = window.location.hash.replace("#", "");
+  if (hash === "cycle") activateTab("tab-cycle");
+  else if (hash === "directory") activateTab("tab-directory");
+}
+
+// تهيئة التبويبات ومتابع الدورة والدليل فوراً (تعمل أوفلاين بدون انتظار تحميل ONNX)
+initTabs();
+initBroilerTracker();
+initDirectory();
 
 // --------------------------------------------------------------
 // إعدادات افتراضية تُحدَّث تلقائياً من model/ood_config.json عند التحميل
@@ -56,6 +95,7 @@ const TTA_VARIANTS = [
 
 let session = null;
 let selectedImageEl = null;
+let lastShareMessage = "";
 
 // --------------------------------------------------------------
 // تحميل النموذج وإعدادات المعايرة وبوابة الرفض (ood_config.json)
@@ -217,7 +257,6 @@ function softmaxWithTemperature(logits, temperature) {
 }
 
 // حساب مسافة Cosine (1 - أقصى تشابه Cosine مع مراكز الفئات الأربع الحقيقية)
-// مطابق حرفياً لدالة novelty_score_cosine في train_poultry_onnx_v2.ipynb
 function computeCosineOOD(embedding) {
   if (!NOVELTY_GATE || !NOVELTY_GATE.cosine_centroids || !embedding) return null;
 
@@ -244,7 +283,6 @@ function computeCosineOOD(embedding) {
 }
 
 // حساب مسافة Mahalanobis القطرية بين تمثيل الصورة وأقرب فئة حقيقية
-// مطابق حرفياً لدالة novelty_score_mahalanobis في train_poultry_onnx_v2.ipynb
 function computeMahalanobisOOD(embedding) {
   if (!NOVELTY_GATE || !NOVELTY_GATE.class_means || !NOVELTY_GATE.global_var || !embedding) {
     return null;
@@ -312,13 +350,11 @@ async function runInference(imgEl) {
   const mahalOOD = computeMahalanobisOOD(embedding);
 
   // ── بوابة الرفض الثلاثية المتدرجة ──
-  // 1) رفض قاطع (OOD): فئة Other من Softmax أو تجاوز عتبة مسافة Cosine (0.8024)
   const isSoftmaxOther = predictedClass === "Other";
   const isCosineRejected =
     cosineOOD !== null && cosineOOD.cosineDistance > cosineOOD.cosineThreshold;
   const isHardReject = isSoftmaxOther || isCosineRejected;
 
-  // 2) تنبيه جودة الصورة (تحذير أصفر): اجتازت Softmax وCosine لكن تجاوزت Mahalanobis (2705.79) أو الثقة < 65%
   const isMahalWarning =
     !isHardReject && mahalOOD !== null && mahalOOD.mahalDistance > mahalOOD.mahalThreshold;
   const isLowConfWarning = !isHardReject && confidence < QUALITY_WARNING_CONFIDENCE;
@@ -361,6 +397,27 @@ diagnoseBtn.addEventListener("click", async () => {
   }
 });
 
+function buildDiagnosisShareMessage(outcome) {
+  const clsAr = CLASS_NAMES_AR[outcome.predictedClass] || outcome.predictedClass;
+  const pct = Math.round(outcome.confidence * 100);
+  const note = EXPLANATION_TEMPLATES_AR[outcome.predictedClass] || "";
+  const qualityLine =
+    outcome.decision === "QUALITY_WARNING"
+      ? "• تنبيه جودة الصورة: يُنصح بإعادة التصوير بوضوح أعلى للتأكيد.\n"
+      : "";
+
+  return (
+    `🐔 *تقرير فحص مبدئي — تطبيق تشخيص أمراض الدواجن*\n` +
+    `• الحالة المتوقعة: *${clsAr}*\n` +
+    `• نسبة الثقة المعايرة: *${pct}%*\n` +
+    qualityLine +
+    `• الملاحظة: ${note}\n` +
+    `⚠️ تشخيص مبدئي بالذكاء الاصطناعي — استشر طبيباً بيطرياً قبل بدء العلاج.\n\n` +
+    `📲 افحص قطيعك وتابع دورة التسمين مجاناً وبدون إنترنت:\n` +
+    `${APP_PUBLIC_URL}`
+  );
+}
+
 function displayResult(outcome) {
   const resultCard = document.getElementById("result-card");
   const badge = document.getElementById("result-badge");
@@ -371,12 +428,15 @@ function displayResult(outcome) {
   const confPct = document.getElementById("confidence-pct");
   const explanationText = document.getElementById("explanation-text");
   const probList = document.getElementById("prob-list");
+  const shareActions = document.getElementById("share-actions");
   const gateMeta = document.getElementById("gate-meta");
 
   warningBanner.classList.remove("visible");
   warningBanner.textContent = "";
   oodBox.classList.remove("visible");
   oodBox.innerHTML = "";
+  shareActions.classList.remove("visible");
+  lastShareMessage = "";
 
   const cosText = outcome.cosineOOD
     ? `Cosine dist: ${outcome.cosineOOD.cosineDistance.toFixed(3)} / ${outcome.cosineOOD.cosineThreshold.toFixed(3)}`
@@ -438,10 +498,8 @@ function displayResult(outcome) {
   const { label } = confidenceLabel(outcome.confidence);
   confPct.textContent = `${label} (${pct}%)`;
 
-  explanationText.textContent =
-    EXPLANATION_TEMPLATES_AR[outcome.predictedClass] || "";
+  explanationText.textContent = EXPLANATION_TEMPLATES_AR[outcome.predictedClass] || "";
 
-  // عرض الاحتمالات المعايرة مرتبة تنازلياً (الفئات الأربع الحقيقية، مع إظهار Other فقط إذا كانت >= 1%)
   const sorted = CLASS_NAMES.map((cls, i) => ({ cls, prob: outcome.probs[i] }))
     .filter(({ cls, prob }) => cls !== "Other" || prob >= 0.01)
     .sort((a, b) => b.prob - a.prob);
@@ -457,11 +515,38 @@ function displayResult(outcome) {
     )
     .join("");
 
+  // تفعيل محرك المشاركة الفيروسية عبر واتساب
+  lastShareMessage = buildDiagnosisShareMessage(outcome);
+  shareActions.classList.add("visible");
+
   gateMeta.innerHTML = `<span>معايرة T=${TEMPERATURE} · ${MODEL_VERSION}</span><span>${[cosText, mahalText].filter(Boolean).join(" · ")}</span>`;
 
   resultCard.classList.add("visible");
   resultCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
+
+// أزرار مشاركة التقرير عبر واتساب أو نسخه
+const shareWhatsappBtn = document.getElementById("share-whatsapp-btn");
+const copyReportBtn = document.getElementById("copy-report-btn");
+
+shareWhatsappBtn.addEventListener("click", () => {
+  if (!lastShareMessage) return;
+  window.open(buildWhatsAppUrl("", lastShareMessage), "_blank", "noopener,noreferrer");
+});
+
+copyReportBtn.addEventListener("click", async () => {
+  if (!lastShareMessage) return;
+  try {
+    await navigator.clipboard.writeText(lastShareMessage);
+    const oldText = copyReportBtn.textContent;
+    copyReportBtn.textContent = "✅ تم النسخ";
+    setTimeout(() => {
+      copyReportBtn.textContent = oldText;
+    }, 1800);
+  } catch {
+    alert(lastShareMessage);
+  }
+});
 
 // --------------------------------------------------------------
 // تسجيل Service Worker وتحديث الكاش تلقائياً عند وجود إصدار جديد
