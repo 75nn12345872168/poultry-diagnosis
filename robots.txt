@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://75nn12345872168.github.io/poultry-diagnosis/sitemap.xml

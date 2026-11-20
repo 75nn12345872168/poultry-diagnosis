@@ -1052,6 +1052,58 @@ footer {
   line-height: 1.6;
 }
 
+/* ── قسم الدليل الإرشادي المطوي (SEO + فائدة عملية للمربي) ── */
+.seo-guide {
+  margin-top: 6px;
+}
+.seo-guide-title {
+  margin: 0 0 6px;
+  font-size: 0.96rem;
+  font-weight: 800;
+  color: var(--primary-dark);
+}
+.seo-guide-intro {
+  margin: 0 0 12px;
+  font-size: 0.81rem;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+.guide-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.guide-accordion details {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 11px 13px;
+}
+.guide-accordion summary {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.45;
+}
+.guide-accordion details[open] summary {
+  color: var(--primary);
+  margin-bottom: 8px;
+}
+.guide-accordion p {
+  margin: 0;
+  font-size: 0.83rem;
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+.guide-accordion .guide-chevron {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  transition: transform 0.15s;
+}
+.guide-accordion details[open] .guide-chevron {
+  transform: rotate(180deg);
+}
+
 /* ── شريط التنقل السفلي الثابت (تجربة تطبيق هاتف أصلية) ── */
 .bottom-nav {
   position: fixed;
