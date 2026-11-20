@@ -121,6 +121,48 @@
   }
   .badge-disease { background: #FBE9E7; color: var(--danger); }
   .badge-healthy { background: #E6F4EA; color: var(--success); }
+  .badge-ood { background: #FCE8E6; color: #A50E0E; border: 1px solid #F5C2C0; }
+
+  .warning-banner {
+    display: none;
+    background: #FFF8E1;
+    color: #7A4F01;
+    border: 1px solid #F5D076;
+    border-right: 4px solid #D98200;
+    border-radius: 10px;
+    padding: 11px 13px;
+    margin-bottom: 12px;
+    font-size: 0.86rem;
+    line-height: 1.55;
+  }
+  .warning-banner.visible { display: block; }
+
+  .ood-box {
+    display: none;
+    background: #FDF2F2;
+    color: #7F1D1D;
+    border: 1px solid #F5C2C0;
+    border-right: 4px solid var(--danger);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin: 8px 0 12px;
+    font-size: 0.9rem;
+    line-height: 1.65;
+  }
+  .ood-box.visible { display: block; }
+  .ood-box ul { margin: 8px 0 0; padding-right: 18px; font-size: 0.84rem; }
+
+  .gate-meta {
+    margin-top: 10px;
+    font-size: 0.74rem;
+    color: var(--text-muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: space-between;
+    border-top: 1px dashed var(--border);
+    padding-top: 8px;
+  }
 
   .confidence-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
   .confidence-bar-bg { flex: 1; height: 8px; background: #EDEBE3; border-radius: 4px; overflow: hidden; }
@@ -215,7 +257,10 @@
   <div class="card" id="result-card">
     <div id="result-badge" class="result-badge"></div>
 
-    <div class="confidence-row">
+    <div class="warning-banner" id="quality-warning" role="alert"></div>
+    <div class="ood-box" id="ood-guidance" role="alert"></div>
+
+    <div class="confidence-row" id="confidence-row">
       <span class="confidence-label">مستوى الثقة</span>
       <div class="confidence-bar-bg"><div class="confidence-bar-fill" id="confidence-fill"></div></div>
       <span class="confidence-label" id="confidence-pct"></span>
@@ -224,6 +269,8 @@
     <div class="explanation" id="explanation-text"></div>
 
     <div class="prob-list" id="prob-list"></div>
+
+    <div class="gate-meta" id="gate-meta"></div>
 
     <div class="disclaimer">
       ⚠️ هذا تشخيص مبدئي بالذكاء الاصطناعي وليس بديلاً عن الفحص البيطري. في حال استمرار الأعراض أو الحالات الحرجة، يرجى استشارة طبيب بيطري.

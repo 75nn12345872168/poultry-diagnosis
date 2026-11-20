@@ -1,38 +1,79 @@
 // ============================================================
-// Service Worker - يجعل التطبيق يعمل بالكامل بدون إنترنت بعد أول تحميل ناجح
+// Service Worker v2 - تحديث إجباري لكاش نموذج v2 والعمل بدون إنترنت
 // ============================================================
 
-const CACHE_VERSION = "poultry-diagnosis-v1";
+const CACHE_VERSION = "poultry-diagnosis-v2-20261120";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./app.js",
   "./manifest.json",
   "./model/poultry_classifier.onnx",
+  "./model/ood_config.json",
+  "./model/class_config.json",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
 ];
 
-// عند التثبيت: تحميل كل ملفات التطبيق الأساسية والنموذج مسبقاً
+// عند التثبيت: جلب النسخة الجديدة من كل ملفات التطبيق ونموذج v2 متجاوزاً كاش HTTP القديم
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_VERSION).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting())
+    caches
+      .open(CACHE_VERSION)
+      .then((cache) =>
+        Promise.all(
+          APP_SHELL.map((url) =>
+            cache.add(new Request(url, { cache: "reload" }))
+          )
+        )
+      )
+      .then(() => self.skipWaiting())
   );
 });
 
-// عند التفعيل: حذف أي نسخ كاش قديمة من إصدارات سابقة للتطبيق
+// عند التفعيل: حذف جميع إصدارات الكاش القديمة (مثل poultry-diagnosis-v1) فوراً
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k))
+        )
+      )
+      .then(() => self.clients.claim())
   );
 });
 
-// استراتيجية الجلب: Cache First مع تحديث في الخلفية (Stale-While-Revalidate)
-// تشمل أيضاً ملفات onnxruntime-web من الـ CDN كي يعمل التطبيق بالكامل دون إنترنت لاحقاً
+// استراتيجية الجلب:
+// - ملفات الكود والإعدادات (HTML/JS/JSON): Network First لضمان وصول التحديثات فوراً مع Fallback للكاش عند انقطاع الإنترنت
+// - النموذج الثقيل والصور وملفات WASM من CDN: Cache First مع تحديث في الخلفية
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+
+  const url = new URL(event.request.url);
+  const isSameOrigin = url.origin === self.location.origin;
+  const isCodeOrConfig =
+    isSameOrigin &&
+    (event.request.mode === "navigate" ||
+      url.pathname.endsWith(".html") ||
+      url.pathname.endsWith(".js") ||
+      url.pathname.endsWith(".json"));
+
+  if (isCodeOrConfig) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, clone));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
@@ -44,9 +85,8 @@ self.addEventListener("fetch", (event) => {
           }
           return networkResponse;
         })
-        .catch(() => cachedResponse); // لا يوجد إنترنت: الاعتماد الكامل على الكاش
+        .catch(() => cachedResponse);
 
-      // لو موجود في الكاش، نرجّعه فوراً (سريع) وفي نفس الوقت نحدّثه بالخلفية
       return cachedResponse || networkFetch;
     })
   );

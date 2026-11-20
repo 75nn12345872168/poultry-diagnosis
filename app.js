@@ -1,56 +1,117 @@
 // ============================================================
-// تطبيق تشخيص أمراض الدواجن - يعمل بالكامل داخل المتصفح (Client-Side)
-// النموذج: EfficientNet-B0 مُصدَّر إلى صيغة ONNX
+// تطبيق تشخيص أمراض الدواجن v2 - يعمل بالكامل داخل المتصفح (Client-Side)
+// النموذج: EfficientNet-B0 ONNX v2 (Zero Data Leakage + Temperature Calibration + بوابة OOD ثلاثية)
 // ============================================================
 
 import * as ort from "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.mjs";
 
-// توجيه محرك WASM لتحميل ملفاته من نفس الـ CDN (سيُخزَّن مؤقتاً عبر Service Worker للعمل بدون إنترنت لاحقاً)
+// توجيه محرك WASM لتحميل ملفاته من نفس الـ CDN (يُخزَّن مؤقتاً عبر Service Worker للعمل بدون إنترنت لاحقاً)
 ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/";
 
 // --------------------------------------------------------------
-// إعدادات ثابتة - يجب أن تطابق بالضبط ما استُخدم أثناء التدريب (Block 4 في النوتبوك)
+// إعدادات افتراضية تُحدَّث تلقائياً من model/ood_config.json عند التحميل
 // --------------------------------------------------------------
 const MODEL_PATH = "model/poultry_classifier.onnx";
-const IMG_SIZE = 224;
-const IMAGENET_MEAN = [0.485, 0.456, 0.406];
-const IMAGENET_STD = [0.229, 0.224, 0.225];
+const CONFIG_PATHS = ["model/ood_config.json", "model/class_config.json"];
 
-// ترتيب الفئات يجب أن يطابق بالضبط ترتيب CLASS_NAMES في Block 2 من النوتبوك
-const CLASS_NAMES = ["Coccidiosis", "Salmonella", "Newcastle", "Healthy"];
+let IMG_SIZE = 224;
+let IMAGENET_MEAN = [0.485, 0.456, 0.406];
+let IMAGENET_STD = [0.229, 0.224, 0.225];
+let CLASS_NAMES = ["Coccidiosis", "Salmonella", "Newcastle", "Healthy", "Other"];
+let TEMPERATURE = 0.8892;
+let USE_TTA = true;
+let MODEL_VERSION = "2026-11-20-v2";
+let TEST_ACCURACY = 0.9751;
+let NOVELTY_GATE = null;
+
+// عتبة تنبيه جودة الصورة (ثقة أقل من 65% تعرض شريط التنبيه الأصفر)
+const QUALITY_WARNING_CONFIDENCE = 0.65;
 
 const CLASS_NAMES_AR = {
   Coccidiosis: "كوكسيديا (Coccidiosis)",
   Salmonella: "سالمونيلا (Salmonella)",
   Newcastle: "نيوكاسل (Newcastle Disease)",
   Healthy: "سليم (Healthy)",
+  Other: "صورة غير متعلقة بالدواجن (Other)",
 };
 
-// نفس قوالب Stage 2 الموجودة في Block 8 من النوتبوك
-const EXPLANATION_TEMPLATES = {
-  Coccidiosis: "فضلات غير طبيعية وعلامات متوافقة مع إصابة معوية (كوكسيديا).",
-  Salmonella: "علامات متوافقة مع إصابة بكتيرية تؤثر على الجهاز الهضمي (سالمونيلا).",
-  Newcastle: "علامات تنفسية و/أو عصبية متوافقة مع إصابة فيروسية (نيوكاسل).",
-  Healthy: "لا توجد أعراض غير طبيعية ظاهرة؛ الطائر يبدو في حالة طبيعية.",
+let EXPLANATION_TEMPLATES_AR = {
+  Coccidiosis:
+    "قوام/لون الفضلات (احتمال وجود دم أو مخاط) مطابق لنمط بصري شبيه بحالات كوكسيديا في بيانات التدريب. هذه مطابقة بصرية أولية وليست تشخيصاً سريرياً نهائياً.",
+  Salmonella:
+    "قوام/لون/تماسك الفضلات مطابق لنمط بصري شبيه بحالات سالمونيلا في بيانات التدريب. هذه مطابقة بصرية أولية وليست تشخيصاً سريرياً نهائياً.",
+  Newcastle:
+    "نمط الفضلات مطابق لنمط بصري شبيه بحالات نيوكاسل. تنبيه مهم: مرض نيوكاسل غالباً يصاحبه أعراض تنفسية وعصبية لا تظهر في صور الفضلات — الفحص البيطري للطائر ضروري.",
+  Healthy: "لم يُلاحَظ نمط فضلات غير طبيعي مقارنة بصور التدريب.",
+  Other:
+    "الصورة لا تبدو متعلقة بالدواجن أو الفضلات. يرجى التقاط صورة واضحة ومباشرة لفضلات الدواجن عن قرب وبإضاءة جيدة.",
 };
+
+// نفس 3 تحويلات TTA المعايرة في train_poultry_onnx_v2.ipynb بالضبط
+const TTA_VARIANTS = [
+  { flip: false, centerCropFactor: 1.0 },
+  { flip: true, centerCropFactor: 1.0 },
+  { flip: false, centerCropFactor: 0.9 },
+];
 
 let session = null;
 let selectedImageEl = null;
 
 // --------------------------------------------------------------
-// تحميل النموذج عند فتح التطبيق
+// تحميل النموذج وإعدادات المعايرة وبوابة الرفض (ood_config.json)
 // --------------------------------------------------------------
 const statusDot = document.getElementById("status-dot");
 const statusText = document.getElementById("status-text");
 const diagnoseBtn = document.getElementById("diagnose-btn");
 
+async function loadOodConfig() {
+  for (const url of CONFIG_PATHS) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const cfg = await res.json();
+      if (Array.isArray(cfg.class_names) && cfg.class_names.length > 0) CLASS_NAMES = cfg.class_names;
+      if (typeof cfg.temperature === "number" && cfg.temperature > 0) TEMPERATURE = cfg.temperature;
+      if (typeof cfg.img_size === "number") IMG_SIZE = cfg.img_size;
+      if (Array.isArray(cfg.mean) && cfg.mean.length === 3) IMAGENET_MEAN = cfg.mean;
+      if (Array.isArray(cfg.std) && cfg.std.length === 3) IMAGENET_STD = cfg.std;
+      if (typeof cfg.use_tta === "boolean") USE_TTA = cfg.use_tta;
+      if (cfg.model_version) MODEL_VERSION = cfg.model_version;
+      if (typeof cfg.test_accuracy === "number") TEST_ACCURACY = cfg.test_accuracy;
+      if (cfg.novelty_gate) NOVELTY_GATE = cfg.novelty_gate;
+      if (cfg.explanation_templates_ar) {
+        EXPLANATION_TEMPLATES_AR = { ...EXPLANATION_TEMPLATES_AR, ...cfg.explanation_templates_ar };
+      }
+      return cfg;
+    } catch (err) {
+      console.warn(`Config load attempt failed for ${url}:`, err);
+    }
+  }
+  return null;
+}
+
 async function loadModel() {
   try {
-    session = await ort.InferenceSession.create(MODEL_PATH, {
-      executionProviders: ["wasm"],
-    });
+    const [cfg, ortSession] = await Promise.all([
+      loadOodConfig(),
+      ort.InferenceSession.create(MODEL_PATH, { executionProviders: ["wasm"] }),
+    ]);
+    session = ortSession;
+
+    statusDot.classList.remove("error");
     statusDot.classList.add("ready");
-    statusText.textContent = "النموذج جاهز — يعمل بدون إنترنت";
+    const accPct = (TEST_ACCURACY * 100).toFixed(1);
+    const gateNote = NOVELTY_GATE ? " · بوابة OOD مفعّلة" : "";
+    statusText.textContent = `النموذج جاهز (${MODEL_VERSION} · دقة ${accPct}%${gateNote}) — يعمل بدون إنترنت`;
+
+    if (!cfg) {
+      console.warn("ood_config.json not loaded; using built-in v2 fallback defaults.");
+    }
+
+    if (selectedImageEl) {
+      diagnoseBtn.disabled = false;
+      diagnoseBtn.textContent = "🔍 تشخيص الصورة";
+    }
   } catch (err) {
     console.error("Model load failed:", err);
     statusDot.classList.add("error");
@@ -79,16 +140,17 @@ function handleFileSelect(e) {
 
   const reader = new FileReader();
   reader.onload = (ev) => {
+    previewImg.onload = () => {
+      previewImg.style.display = "block";
+      placeholderIcon.style.display = "none";
+      previewWrap.classList.add("has-image");
+      selectedImageEl = previewImg;
+
+      diagnoseBtn.disabled = !session;
+      diagnoseBtn.textContent = session ? "🔍 تشخيص الصورة" : "جاري تحميل النموذج...";
+      document.getElementById("result-card").classList.remove("visible");
+    };
     previewImg.src = ev.target.result;
-    previewImg.style.display = "block";
-    placeholderIcon.style.display = "none";
-    previewWrap.classList.add("has-image");
-    selectedImageEl = previewImg;
-
-    diagnoseBtn.disabled = !session;
-    diagnoseBtn.textContent = session ? "🔍 تشخيص الصورة" : "جاري تحميل النموذج...";
-
-    document.getElementById("result-card").classList.remove("visible");
   };
   reader.readAsDataURL(file);
 }
@@ -96,19 +158,38 @@ cameraInput.addEventListener("change", handleFileSelect);
 galleryInput.addEventListener("change", handleFileSelect);
 
 // --------------------------------------------------------------
-// تجهيز الصورة (Preprocessing) - يجب أن يطابق val_test_transform في Block 4 بالضبط:
-// Resize(224,224) ثم Normalize بمتوسط/انحراف ImageNet، وتحويل HWC -> CHW
+// تجهيز الصورة (Preprocessing) مطابق تماماً لتحويلات التدريب والـ TTA
 // --------------------------------------------------------------
-function preprocessImage(imgEl) {
+function preprocessImage(imgEl, { flip = false, centerCropFactor = 1.0 } = {}) {
   const canvas = document.createElement("canvas");
   canvas.width = IMG_SIZE;
   canvas.height = IMG_SIZE;
   const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
 
-  // Resize مباشر بدون Crop (نفس سلوك A.Resize في Albumentations)
-  ctx.drawImage(imgEl, 0, 0, IMG_SIZE, IMG_SIZE);
+  const iw = imgEl.naturalWidth || imgEl.width;
+  const ih = imgEl.naturalHeight || imgEl.height;
+
+  let sx = 0;
+  let sy = 0;
+  let sw = iw;
+  let sh = ih;
+  if (centerCropFactor < 1.0) {
+    sw = iw * centerCropFactor;
+    sh = ih * centerCropFactor;
+    sx = (iw - sw) / 2;
+    sy = (ih - sh) / 2;
+  }
+
+  if (flip) {
+    ctx.translate(IMG_SIZE, 0);
+    ctx.scale(-1, 1);
+  }
+  ctx.drawImage(imgEl, sx, sy, sw, sh, 0, 0, IMG_SIZE, IMG_SIZE);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+
   const imageData = ctx.getImageData(0, 0, IMG_SIZE, IMG_SIZE).data; // RGBA, HWC
-
   const channelSize = IMG_SIZE * IMG_SIZE;
   const floatData = new Float32Array(3 * channelSize); // CHW
 
@@ -117,30 +198,151 @@ function preprocessImage(imgEl) {
     const g = imageData[i * 4 + 1] / 255;
     const b = imageData[i * 4 + 2] / 255;
 
-    floatData[i] = (r - IMAGENET_MEAN[0]) / IMAGENET_STD[0];                  // قناة R
-    floatData[channelSize + i] = (g - IMAGENET_MEAN[1]) / IMAGENET_STD[1];    // قناة G
-    floatData[2 * channelSize + i] = (b - IMAGENET_MEAN[2]) / IMAGENET_STD[2]; // قناة B
+    floatData[i] = (r - IMAGENET_MEAN[0]) / IMAGENET_STD[0];
+    floatData[channelSize + i] = (g - IMAGENET_MEAN[1]) / IMAGENET_STD[1];
+    floatData[2 * channelSize + i] = (b - IMAGENET_MEAN[2]) / IMAGENET_STD[2];
   }
 
   return new ort.Tensor("float32", floatData, [1, 3, IMG_SIZE, IMG_SIZE]);
 }
 
-function softmax(logits) {
-  const max = Math.max(...logits);
-  const exps = logits.map((v) => Math.exp(v - max));
+// تطبيق Temperature Scaling على الـ logits قبل Softmax
+function softmaxWithTemperature(logits, temperature) {
+  const safeTemp = temperature > 0 ? temperature : 1.0;
+  const scaled = logits.map((v) => v / safeTemp);
+  const max = Math.max(...scaled);
+  const exps = scaled.map((v) => Math.exp(v - max));
   const sum = exps.reduce((a, b) => a + b, 0);
   return exps.map((v) => v / sum);
 }
 
+// حساب مسافة Cosine (1 - أقصى تشابه Cosine مع مراكز الفئات الأربع الحقيقية)
+// مطابق حرفياً لدالة novelty_score_cosine في train_poultry_onnx_v2.ipynb
+function computeCosineOOD(embedding) {
+  if (!NOVELTY_GATE || !NOVELTY_GATE.cosine_centroids || !embedding) return null;
+
+  let normSq = 0;
+  for (let i = 0; i < embedding.length; i++) normSq += embedding[i] * embedding[i];
+  const embNorm = Math.sqrt(normSq) + 1e-8;
+
+  let maxCosSim = -Infinity;
+  const centroids = NOVELTY_GATE.cosine_centroids;
+  for (const cls of Object.keys(centroids)) {
+    const centroid = centroids[cls];
+    let dot = 0;
+    for (let i = 0; i < embedding.length; i++) {
+      dot += (embedding[i] / embNorm) * centroid[i];
+    }
+    if (dot > maxCosSim) maxCosSim = dot;
+  }
+
+  const cosineDistance = 1.0 - maxCosSim;
+  const cosineThreshold =
+    typeof NOVELTY_GATE.cosine_threshold === "number" ? NOVELTY_GATE.cosine_threshold : 0.8024;
+
+  return { cosineDistance, maxCosSim, cosineThreshold };
+}
+
+// حساب مسافة Mahalanobis القطرية بين تمثيل الصورة وأقرب فئة حقيقية
+// مطابق حرفياً لدالة novelty_score_mahalanobis في train_poultry_onnx_v2.ipynb
+function computeMahalanobisOOD(embedding) {
+  if (!NOVELTY_GATE || !NOVELTY_GATE.class_means || !NOVELTY_GATE.global_var || !embedding) {
+    return null;
+  }
+
+  const { class_means, global_var } = NOVELTY_GATE;
+  let minDist = Infinity;
+
+  for (const cls of Object.keys(class_means)) {
+    const mean = class_means[cls];
+    let dist = 0;
+    for (let i = 0; i < embedding.length; i++) {
+      const diff = embedding[i] - mean[i];
+      dist += (diff * diff) / global_var[i];
+    }
+    if (dist < minDist) minDist = dist;
+  }
+
+  const mahalThreshold =
+    typeof NOVELTY_GATE.threshold === "number" ? NOVELTY_GATE.threshold : 2705.7917;
+
+  return { mahalDistance: minDist, mahalThreshold };
+}
+
 function confidenceLabel(prob) {
-  if (prob >= 0.8) return { label: "عالية", key: "high" };
-  if (prob >= 0.55) return { label: "متوسطة", key: "medium" };
+  if (prob >= 0.85) return { label: "عالية", key: "high" };
+  if (prob >= QUALITY_WARNING_CONFIDENCE) return { label: "جيدة", key: "medium" };
   return { label: "منخفضة", key: "low" };
 }
 
 // --------------------------------------------------------------
-// التشخيص (Stage 1: تصنيف + Stage 2: توليد التقرير)
+// تشغيل الاستدلال مع TTA + المعايرة الحرارية + بوابة OOD الثلاثية
 // --------------------------------------------------------------
+async function runInference(imgEl) {
+  const variants = USE_TTA ? TTA_VARIANTS : [TTA_VARIANTS[0]];
+  const numClasses = CLASS_NAMES.length;
+  const accumProbs = new Array(numClasses).fill(0);
+  let accumEmbedding = null;
+
+  for (const variant of variants) {
+    const inputTensor = preprocessImage(imgEl, variant);
+    const results = await session.run({ input: inputTensor });
+    const logits = Array.from(results.output.data);
+    const probs = softmaxWithTemperature(logits, TEMPERATURE);
+
+    for (let i = 0; i < numClasses; i++) accumProbs[i] += probs[i];
+
+    if (results.embedding && results.embedding.data) {
+      const emb = results.embedding.data;
+      if (!accumEmbedding) accumEmbedding = new Float64Array(emb.length);
+      for (let i = 0; i < emb.length; i++) accumEmbedding[i] += emb[i];
+    }
+  }
+
+  const probs = accumProbs.map((v) => v / variants.length);
+  const embedding = accumEmbedding
+    ? Array.from(accumEmbedding, (v) => v / variants.length)
+    : null;
+
+  const maxIdx = probs.indexOf(Math.max(...probs));
+  const predictedClass = CLASS_NAMES[maxIdx];
+  const confidence = probs[maxIdx];
+
+  const cosineOOD = computeCosineOOD(embedding);
+  const mahalOOD = computeMahalanobisOOD(embedding);
+
+  // ── بوابة الرفض الثلاثية المتدرجة ──
+  // 1) رفض قاطع (OOD): فئة Other من Softmax أو تجاوز عتبة مسافة Cosine (0.8024)
+  const isSoftmaxOther = predictedClass === "Other";
+  const isCosineRejected =
+    cosineOOD !== null && cosineOOD.cosineDistance > cosineOOD.cosineThreshold;
+  const isHardReject = isSoftmaxOther || isCosineRejected;
+
+  // 2) تنبيه جودة الصورة (تحذير أصفر): اجتازت Softmax وCosine لكن تجاوزت Mahalanobis (2705.79) أو الثقة < 65%
+  const isMahalWarning =
+    !isHardReject && mahalOOD !== null && mahalOOD.mahalDistance > mahalOOD.mahalThreshold;
+  const isLowConfWarning = !isHardReject && confidence < QUALITY_WARNING_CONFIDENCE;
+  const isQualityWarning = isMahalWarning || isLowConfWarning;
+
+  const outcome = {
+    decision: isHardReject ? "OOD_REJECT" : isQualityWarning ? "QUALITY_WARNING" : "DIAGNOSIS_OK",
+    predictedClass,
+    confidence,
+    probs,
+    temperature: TEMPERATURE,
+    isSoftmaxOther,
+    isCosineRejected,
+    isMahalWarning,
+    isLowConfWarning,
+    cosineOOD,
+    mahalOOD,
+  };
+
+  window.__POULTRY_LAST_INFERENCE__ = outcome;
+  console.info("[Poultry v2 Inference]", outcome);
+  return outcome;
+}
+
 diagnoseBtn.addEventListener("click", async () => {
   if (!session || !selectedImageEl) return;
 
@@ -148,16 +350,8 @@ diagnoseBtn.addEventListener("click", async () => {
   diagnoseBtn.innerHTML = 'جاري التحليل...<span class="spinner"></span>';
 
   try {
-    const inputTensor = preprocessImage(selectedImageEl);
-    const results = await session.run({ input: inputTensor });
-    const logits = Array.from(results.output.data);
-    const probs = softmax(logits);
-
-    const maxIdx = probs.indexOf(Math.max(...probs));
-    const predictedClass = CLASS_NAMES[maxIdx];
-    const confidence = probs[maxIdx];
-
-    displayResult(predictedClass, confidence, probs);
+    const outcome = await runInference(selectedImageEl);
+    displayResult(outcome);
   } catch (err) {
     console.error("Inference failed:", err);
     alert("حدث خطأ أثناء التحليل. حاول مرة أخرى بصورة أخرى.");
@@ -167,50 +361,129 @@ diagnoseBtn.addEventListener("click", async () => {
   }
 });
 
-function displayResult(predictedClass, confidence, allProbs) {
+function displayResult(outcome) {
   const resultCard = document.getElementById("result-card");
   const badge = document.getElementById("result-badge");
+  const warningBanner = document.getElementById("quality-warning");
+  const oodBox = document.getElementById("ood-guidance");
+  const confidenceRow = document.getElementById("confidence-row");
   const confFill = document.getElementById("confidence-fill");
   const confPct = document.getElementById("confidence-pct");
   const explanationText = document.getElementById("explanation-text");
   const probList = document.getElementById("prob-list");
+  const gateMeta = document.getElementById("gate-meta");
 
-  const isHealthy = predictedClass === "Healthy";
-  badge.textContent = CLASS_NAMES_AR[predictedClass];
+  warningBanner.classList.remove("visible");
+  warningBanner.textContent = "";
+  oodBox.classList.remove("visible");
+  oodBox.innerHTML = "";
+
+  const cosText = outcome.cosineOOD
+    ? `Cosine dist: ${outcome.cosineOOD.cosineDistance.toFixed(3)} / ${outcome.cosineOOD.cosineThreshold.toFixed(3)}`
+    : "";
+  const mahalText = outcome.mahalOOD
+    ? `Mahalanobis: ${Math.round(outcome.mahalOOD.mahalDistance)} / ${Math.round(outcome.mahalOOD.mahalThreshold)}`
+    : "";
+
+  // ── الحالة 1: رفض قاطع (صورة خارج نطاق الدواجن OOD) ──
+  if (outcome.decision === "OOD_REJECT") {
+    badge.textContent = "🚫 صورة غير صالحة للتشخيص";
+    badge.className = "result-badge badge-ood";
+
+    confidenceRow.style.display = "none";
+    explanationText.textContent = "";
+    probList.innerHTML = "";
+
+    const reasonText = outcome.isSoftmaxOther
+      ? "تم تصنيف الصورة خارج نطاق فضلات الدواجن."
+      : "الصورة بعيدة بصرياً عن أنماط فضلات الدواجن المعروفة للنموذج.";
+
+    oodBox.innerHTML = `
+      <strong>هذه الصورة لا تبدو لفضلات دواجن واضحة.</strong><br>
+      ${reasonText} لحماية دقة التشخيص، تم رفض إعطاء نتيجة مرضية.<br>
+      <ul>
+        <li>التقط صورة <strong>قريبة ومباشرة لفضلات الدواجن</strong> بحيث تملأ وسط الإطار.</li>
+        <li>تأكد من توفر <strong>إضاءة جيدة</strong> وتجنب الاهتزاز أو الخلفيات المزدحمة.</li>
+      </ul>
+    `;
+    oodBox.classList.add("visible");
+
+    gateMeta.innerHTML = `<span>بوابة الحماية: رفض OOD (${MODEL_VERSION})</span><span>${[cosText, mahalText].filter(Boolean).join(" · ")}</span>`;
+    resultCard.classList.add("visible");
+    resultCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    return;
+  }
+
+  // ── الحالة 2 و 3: نتيجة تشخيص (مع أو بدون تنبيه جودة الصورة) ──
+  confidenceRow.style.display = "flex";
+
+  const isHealthy = outcome.predictedClass === "Healthy";
+  badge.textContent = CLASS_NAMES_AR[outcome.predictedClass] || outcome.predictedClass;
   badge.className = "result-badge " + (isHealthy ? "badge-healthy" : "badge-disease");
 
-  const pct = Math.round(confidence * 100);
+  if (outcome.decision === "QUALITY_WARNING") {
+    const reasons = [];
+    if (outcome.isLowConfWarning) {
+      reasons.push(`ثقة التشخيص أقل من ${Math.round(QUALITY_WARNING_CONFIDENCE * 100)}%`);
+    }
+    if (outcome.isMahalWarning) {
+      reasons.push("تباين بصري مرتفع عن صور التدريب المعتادة");
+    }
+    warningBanner.innerHTML = `⚠️ <strong>تنبيه جودة الصورة:</strong> ${reasons.join(" و")} — يُوصى بإعادة تصوير الفضلات عن قرب وبزاوية وإضاءة أوضح للتأكيد قبل اتخاذ قرار علاجي.`;
+    warningBanner.classList.add("visible");
+  }
+
+  const pct = Math.round(outcome.confidence * 100);
   confFill.style.width = pct + "%";
-  const { label } = confidenceLabel(confidence);
+  const { label } = confidenceLabel(outcome.confidence);
   confPct.textContent = `${label} (${pct}%)`;
 
-  explanationText.textContent = EXPLANATION_TEMPLATES[predictedClass];
+  explanationText.textContent =
+    EXPLANATION_TEMPLATES_AR[outcome.predictedClass] || "";
 
-  // ترتيب كل الاحتمالات تنازلياً للعرض التفصيلي
-  const sorted = CLASS_NAMES.map((cls, i) => ({ cls, prob: allProbs[i] })).sort((a, b) => b.prob - a.prob);
+  // عرض الاحتمالات المعايرة مرتبة تنازلياً (الفئات الأربع الحقيقية، مع إظهار Other فقط إذا كانت >= 1%)
+  const sorted = CLASS_NAMES.map((cls, i) => ({ cls, prob: outcome.probs[i] }))
+    .filter(({ cls, prob }) => cls !== "Other" || prob >= 0.01)
+    .sort((a, b) => b.prob - a.prob);
+
   probList.innerHTML = sorted
     .map(
       ({ cls, prob }) => `
       <div class="prob-item">
-        <span class="name">${CLASS_NAMES_AR[cls].split(" (")[0]}</span>
+        <span class="name">${(CLASS_NAMES_AR[cls] || cls).split(" (")[0]}</span>
         <div class="bar-bg"><div class="bar-fill" style="width:${Math.round(prob * 100)}%"></div></div>
         <span class="pct">${Math.round(prob * 100)}%</span>
       </div>`
     )
     .join("");
 
+  gateMeta.innerHTML = `<span>معايرة T=${TEMPERATURE} · ${MODEL_VERSION}</span><span>${[cosText, mahalText].filter(Boolean).join(" · ")}</span>`;
+
   resultCard.classList.add("visible");
   resultCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 // --------------------------------------------------------------
-// تسجيل Service Worker للعمل بدون إنترنت
+// تسجيل Service Worker وتحديث الكاش تلقائياً عند وجود إصدار جديد
 // --------------------------------------------------------------
 if ("serviceWorker" in navigator) {
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  let reloading = false;
+
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (hadController && !reloading) {
+      reloading = true;
+      window.location.reload();
+    }
+  });
+
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js").catch((err) => {
-      console.warn("Service worker registration failed:", err);
-    });
+    navigator.serviceWorker
+      .register("service-worker.js")
+      .then((reg) => reg.update().catch(() => {}))
+      .catch((err) => {
+        console.warn("Service worker registration failed:", err);
+      });
   });
 }
 
