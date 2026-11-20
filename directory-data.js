@@ -1,13 +1,15 @@
 // ============================================================
 // بيانات دليل الصيدليات البيطرية ومورّدي الأعلاف في السودان
-// 100% مجاني خلال فترة الإطلاق — عدّل OWNER_WHATSAPP_NUMBER لرقم واتسابك السوداني (مثال: "249912345678")
+// 100% مجاني خلال فترة الإطلاق — مربوط مباشرة بواتساب الإدارة
 // ============================================================
 
 export const APP_PUBLIC_URL = "https://75nn12345872168.github.io/poultry-diagnosis/";
 
-// ضع رقم واتسابك بالصيغة الدولية بدون علامة + أو أصفار بادئة (مثال: "249912345678")
-// عند تركه فارغاً سيفتح واتساب بنص التسجيل الجاهز لاختيار المحادثة مباشرة
-export const OWNER_WHATSAPP_NUMBER = "";
+// رقم واتساب الإدارة بالصيغة الدولية بدون + (+249125939730)
+export const OWNER_WHATSAPP_NUMBER = "249125939730";
+
+export const DEFAULT_MERCHANT_REGISTER_TEXT =
+  "مرحباً، أرغب في إضافة صيدليتي البيطرية / نشاطي في دليل تطبيق تشخيص الدواجن";
 
 export const SUDAN_CITIES = [
   "القضارف",
@@ -24,8 +26,8 @@ export const MERCHANT_CATEGORIES = {
   chicks: "كتاكيت وتجهيزات مزارع",
 };
 
-// قائمة الشركاء المسجّلين والمراكز البيطرية في الولايات الست
-// (لضمان المصداقية لا نضع أرقام هواتف عشوائية؛ بمجرد تسجيل أي تاجر مجاناً يُضاف رقمه هنا فوراً)
+// قائمة المراكز البيطرية ومورّدي الأعلاف المصنّفة بالولايات
+// (لا نعرض أرقام هواتف غير موثّقة؛ يُضاف كل شريك فور تواصله المجاني عبر واتساب)
 export const DIRECTORY_LISTINGS = [
   {
     id: "gedaref-vet-hub",
@@ -145,4 +147,11 @@ export function buildWhatsAppUrl(phone, message) {
   return cleanPhone
     ? `https://wa.me/${cleanPhone}?text=${encoded}`
     : `https://wa.me/?text=${encoded}`;
+}
+
+export function getOwnerRegisterUrl(extraDetails = "") {
+  const msg = extraDetails
+    ? `${DEFAULT_MERCHANT_REGISTER_TEXT}\n${extraDetails}`
+    : DEFAULT_MERCHANT_REGISTER_TEXT;
+  return buildWhatsAppUrl(OWNER_WHATSAPP_NUMBER, msg);
 }

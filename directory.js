@@ -1,20 +1,22 @@
 // ============================================================
 // وحدة دليل الصيدليات البيطرية ومورّدي الأعلاف في السودان
-// 100% مجاني للتجار والمربين خلال فترة الإطلاق
+// 100% مجاني للتجار والمربين — مربوط مباشرة بواتساب الإدارة (+249125939730)
 // ============================================================
 
 import {
-  APP_PUBLIC_URL,
+  DEFAULT_MERCHANT_REGISTER_TEXT,
   DIRECTORY_LISTINGS,
   MERCHANT_CATEGORIES,
   OWNER_WHATSAPP_NUMBER,
   SUDAN_CITIES,
   buildWhatsAppUrl,
+  getOwnerRegisterUrl,
 } from "./directory-data.js";
 
 const LOCAL_CONTACTS_KEY = "poultry_local_vet_contacts_v1";
+const PREFERRED_CITY_KEY = "poultry_preferred_city_v1";
 
-function loadLocalContacts() {
+export function loadLocalContacts() {
   try {
     const raw = localStorage.getItem(LOCAL_CONTACTS_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
@@ -32,12 +34,70 @@ function saveLocalContacts(list) {
   }
 }
 
+export function getPreferredCity() {
+  try {
+    const saved = localStorage.getItem(PREFERRED_CITY_KEY);
+    if (saved && SUDAN_CITIES.includes(saved)) return saved;
+  } catch {
+    // ignore
+  }
+  return SUDAN_CITIES[0];
+}
+
+export function setPreferredCity(city) {
+  try {
+    if (SUDAN_CITIES.includes(city)) localStorage.setItem(PREFERRED_CITY_KEY, city);
+  } catch {
+    // ignore
+  }
+}
+
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+// عرض الصيدليات البيطرية المقترحة حسب الولاية أسفل نتيجة الفحص مباشرة (تبويب 1)
+export function renderResultPharmacies(city, listEl) {
+  if (!listEl) return;
+  const savedLocal = loadLocalContacts().map((c) => ({ ...c, isLocalSaved: true }));
+  const all = [...savedLocal, ...DIRECTORY_LISTINGS];
+
+  const matches = all.filter(
+    (item) => item.city === city && (item.category === "pharmacy" || item.isLocalSaved)
+  );
+  const shown = matches.length > 0 ? matches : all.filter((item) => item.city === city);
+
+  listEl.innerHTML = shown
+    .slice(0, 3)
+    .map((item) => {
+      if (item.whatsapp) {
+        const waMsg = `السلام عليكم، أجريت فحصاً عبر تطبيق تشخيص أمراض الدواجن وأحتاج استشارة/علاجاً في ${item.city}.`;
+        const waUrl = buildWhatsAppUrl(item.whatsapp, waMsg);
+        return `
+          <div class="mini-pharm-item">
+            <div class="mini-pharm-title">🏥 ${escapeHtml(item.name)}</div>
+            <div class="mini-pharm-area">📍 ${escapeHtml(item.city)}${item.area ? ` — ${escapeHtml(item.area)}` : ""}</div>
+            <a class="btn-wa-link" href="${waUrl}" target="_blank" rel="noopener noreferrer">💬 تواصل عبر واتساب</a>
+          </div>
+        `;
+      }
+
+      const registerUrl = getOwnerRegisterUrl(`الولاية/المدينة: ${item.city}`);
+      return `
+        <div class="mini-pharm-item">
+          <div class="mini-pharm-title">🏥 ${escapeHtml(item.name)}</div>
+          <div class="mini-pharm-area">📍 ${escapeHtml(item.area || item.city)}</div>
+          <a class="btn-wa-link btn-wa-outline" href="${registerUrl}" target="_blank" rel="noopener noreferrer">
+            📲 أضف صيدليتك في ${escapeHtml(item.city)} مجاناً عبر واتساب
+          </a>
+        </div>
+      `;
+    })
+    .join("");
 }
 
 export function initDirectory() {
@@ -54,26 +114,55 @@ export function initDirectory() {
   const searchInput = document.getElementById("dir-search-input");
   const listContainer = document.getElementById("dir-listings");
 
-  // نموذج حفظ صيدلية/مورّد خاص بالمربي محلياً (أوفلاين)
   const localForm = document.getElementById("dir-local-add-form");
   const localName = document.getElementById("local-contact-name");
   const localCity = document.getElementById("local-contact-city");
   const localCat = document.getElementById("local-contact-category");
   const localPhone = document.getElementById("local-contact-phone");
 
-  // بطاقة تسجيل التجار مجاناً عبر واتساب مع المالك
   const merchantNameInput = document.getElementById("merchant-reg-name");
   const merchantCityInput = document.getElementById("merchant-reg-city");
   const merchantTypeInput = document.getElementById("merchant-reg-type");
   const merchantPhoneInput = document.getElementById("merchant-reg-phone");
-  const merchantWaBtn = document.getElementById("merchant-reg-whatsapp-btn");
+  const merchantWaLink = document.getElementById("merchant-reg-whatsapp-btn");
 
-  // تعبئة قوائم المدن
   const cityOptionsHtml = SUDAN_CITIES.map((c) => `<option value="${c}">${c}</option>`).join("");
   if (localCity) localCity.innerHTML = cityOptionsHtml;
   if (merchantCityInput) merchantCityInput.innerHTML = cityOptionsHtml;
 
-  // رسم أزرار تصفية المدن
+  // تحديث رابط واتساب التسجيل المجاني (+249125939730) فورياً
+  function syncMerchantWhatsappHref() {
+    if (!merchantWaLink) return;
+    const bName = (merchantNameInput?.value || "").trim();
+    const bCity = merchantCityInput?.value || "";
+    const bType = MERCHANT_CATEGORIES[merchantTypeInput?.value] || "";
+    const bPhone = (merchantPhoneInput?.value || "").trim();
+
+    if (!bName && !bPhone) {
+      // الرابط المباشر النظيف تماماً حسب نص الإطلاق المعتمد
+      merchantWaLink.href = buildWhatsAppUrl(OWNER_WHATSAPP_NUMBER, DEFAULT_MERCHANT_REGISTER_TEXT);
+      return;
+    }
+
+    const details = [
+      bName ? `• اسم النشاط: ${bName}` : "",
+      bCity ? `• الولاية/المدينة: ${bCity}` : "",
+      bType ? `• نوع النشاط: ${bType}` : "",
+      bPhone ? `• رقم التواصل: ${bPhone}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    merchantWaLink.href = getOwnerRegisterUrl(details);
+  }
+
+  [merchantNameInput, merchantCityInput, merchantTypeInput, merchantPhoneInput].forEach((el) => {
+    if (!el) return;
+    el.addEventListener("input", syncMerchantWhatsappHref);
+    el.addEventListener("change", syncMerchantWhatsappHref);
+  });
+  syncMerchantWhatsappHref();
+
   function renderCityChips() {
     const cities = ["الكل", ...SUDAN_CITIES];
     cityFilterWrap.innerHTML = cities
@@ -122,14 +211,9 @@ export function initDirectory() {
               💬 تواصل عبر واتساب
             </a>`;
         } else {
-          const claimMsg =
-            `السلام عليكم، أرغب في تسجيل نشاطي مجاناً في دليل تطبيق تشخيص أمراض الدواجن:\n` +
-            `• المدينة/الولاية: ${item.city}\n` +
-            `• القسم: ${catLabel}\n` +
-            `• اسم الصيدلية أو المصنع: \n` +
-            `• رقم الواتساب للعملاء: \n` +
-            `• العنوان المختصر: `;
-          const waUrl = buildWhatsAppUrl(OWNER_WHATSAPP_NUMBER, claimMsg);
+          const waUrl = getOwnerRegisterUrl(
+            `• المدينة/الولاية: ${item.city}\n• القسم: ${catLabel}`
+          );
           actionHtml = `
             <a class="btn-wa-link btn-wa-outline" href="${waUrl}" target="_blank" rel="noopener noreferrer">
               📲 سجّل صيدليتك/مصنعك في ${escapeHtml(item.city)} مجاناً
@@ -170,6 +254,7 @@ export function initDirectory() {
     const btn = e.target.closest("button[data-city]");
     if (!btn) return;
     activeCity = btn.getAttribute("data-city");
+    if (activeCity !== "الكل") setPreferredCity(activeCity);
     renderCityChips();
     renderListings();
   });
@@ -184,7 +269,6 @@ export function initDirectory() {
     renderListings();
   });
 
-  // حفظ جهة اتصال بيطرية محلية على جهاز المربي
   localForm.addEventListener("submit", (e) => {
     e.preventDefault();
     const name = (localName.value || "").trim();
@@ -216,24 +300,6 @@ export function initDirectory() {
     localContacts = localContacts.filter((c) => c.id !== id);
     saveLocalContacts(localContacts);
     renderListings();
-  });
-
-  // زر بطاقة تسجيل التجار والشركاء الأوائل مجاناً عبر واتساب
-  merchantWaBtn.addEventListener("click", () => {
-    const bName = (merchantNameInput.value || "").trim() || "(لم يُكتب بعد)";
-    const bCity = merchantCityInput.value || SUDAN_CITIES[0];
-    const bType = MERCHANT_CATEGORIES[merchantTypeInput.value] || "صيدلية بيطرية";
-    const bPhone = (merchantPhoneInput.value || "").trim() || "(رقم هذا الواتساب)";
-
-    const msg =
-      `🏪 *طلب إضافة مجانية في دليل تطبيق تشخيص أمراض الدواجن*\n` +
-      `• اسم الصيدلية / المصنع: ${bName}\n` +
-      `• المدينة / الولاية: ${bCity}\n` +
-      `• نوع النشاط: ${bType}\n` +
-      `• رقم التواصل للعملاء: ${bPhone}\n\n` +
-      `رابط التطبيق: ${APP_PUBLIC_URL}`;
-
-    window.open(buildWhatsAppUrl(OWNER_WHATSAPP_NUMBER, msg), "_blank", "noopener,noreferrer");
   });
 
   renderCityChips();

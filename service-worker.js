@@ -1,11 +1,12 @@
 // ============================================================
-// Service Worker v2.1 - تخزين كامل لجميع تبويبات التطبيق ونموذج v2 للعمل بدون إنترنت
+// Service Worker v2.2 - تحديث إجباري لواجهة المربي الجديدة وتخزين كامل أوفلاين
 // ============================================================
 
-const CACHE_VERSION = "poultry-diagnosis-v2.1-20261120";
+const CACHE_VERSION = "poultry-diagnosis-v2.2-20261120";
 const APP_SHELL = [
   "./",
   "./index.html",
+  "./style.css",
   "./app.js",
   "./tracker.js",
   "./directory.js",
@@ -18,7 +19,6 @@ const APP_SHELL = [
   "./icons/icon-512.png",
 ];
 
-// عند التثبيت: جلب النسخة الجديدة من كل ملفات التطبيق ونموذج v2 متجاوزاً كاش HTTP القديم
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
@@ -34,7 +34,6 @@ self.addEventListener("install", (event) => {
   );
 });
 
-// عند التفعيل: حذف جميع إصدارات الكاش القديمة فوراً
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
@@ -48,9 +47,6 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// استراتيجية الجلب:
-// - ملفات الكود والإعدادات (HTML/JS/JSON): Network First مع Fallback للكاش عند انقطاع الإنترنت
-// - النموذج الثقيل والصور وملفات WASM من CDN: Cache First مع تحديث في الخلفية
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
@@ -60,6 +56,7 @@ self.addEventListener("fetch", (event) => {
     isSameOrigin &&
     (event.request.mode === "navigate" ||
       url.pathname.endsWith(".html") ||
+      url.pathname.endsWith(".css") ||
       url.pathname.endsWith(".js") ||
       url.pathname.endsWith(".json"));
 
